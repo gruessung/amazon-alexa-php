@@ -1,5 +1,9 @@
 # Amazon Alexa PHP Library
 
+## Upcomimg updates (reasons of fork)
+* verifiying timestamp automatically 
+* change timestamp verification to current certification guidelines
+
 This library provides provides a convient interface for developing Amazon Alexa Skills for your PHP app.
 
 ## Usage
