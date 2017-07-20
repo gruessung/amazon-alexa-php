@@ -4,14 +4,14 @@
     "license": "MIT",
     "type": "library",
     "authors": [
+ 	{
+		"name": "Alexander Grüßung",
+		"email": "hallo@gruessung.eu"
+	},
         {
             "name": "Mathias Hansen",
             "email": "me@codemonkey.io"
-        },
-	{
-		"name": "Alexander Grüßung",
-		"email": "hallo@gruessung.eu"
-	}
+        }
     ],
     "require": {
         "php": ">=5.4.0"
