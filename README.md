@@ -1,6 +1,6 @@
 # Amazon Alexa PHP Library
 
-## Upcomimg updates (reasons of fork)
+## Changes (reasons for fork)
 * verifiying timestamp automatically 
 * change timestamp verification to current certification guidelines
 
