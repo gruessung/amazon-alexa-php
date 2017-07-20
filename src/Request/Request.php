@@ -6,42 +6,111 @@ use RuntimeException;
 use InvalidArgumentException;
 use DateTime;
 
-abstract class Request {
-	const TIMESTAMP_VALID_TOLERANCE_SECONDS = 30;
+use Alexa\Request\Certificate;
+use Alexa\Request\Application;
+
+class Request {
 
 	public $requestId;
 	public $timestamp;
-	public $user;
+	/** @var Session */
+	public $session;
+	public $data;
+	public $rawData;
+	public $applicationId;
 
-	public function __construct($data) {
+	/**
+	 * Set up Request with RequestId, timestamp (DateTime) and user (User obj.)
+	 * @param type $data
+	 */
+	public function __construct($rawData, $applicationId = NULL) {
+
+		if (!is_string($rawData)) {
+
+			throw new InvalidArgumentException('Alexa Request requires the raw JSON data to validate request signature');
+		}
+
+		// Decode the raw data into a JSON array.
+		$data = json_decode($rawData, TRUE);
+		if (is_string($data['request']['timestamp']) == false) {
+			if (strlen((string)$data['request']['timestamp']) == 13) {
+				$data['request']['timestamp'] = round($data['request']['timestamp'] / 1000);
+			}
+			$this->timestamp = new DateTime;
+			$this->timestamp->setTimestamp($data['request']['timestamp']);
+		} else {
+			$this->timestamp = new DateTime($data['request']['timestamp']);	
+		}
+		$this->data = $data;
+		$this->rawData = $rawData;
+
 		$this->requestId = $data['request']['requestId'];
-		$this->timestamp = new DateTime($data['request']['timestamp']);
-		$this->user = new User($data['session']['user']);
+		
+		
+		
+		
+		
+
+		$this->session = new Session($data['session']);
+
+
+		$this->applicationId = (is_null($applicationId) && isset($data['session']['application']['applicationId']))
+			? $data['session']['application']['applicationId']
+			: $applicationId;
 	}
 
-	public static function fromData($data) {
-		$requestType = $data['request']['type'];
+	/**
+	 * Accept the certificate validator dependency in order to allow people
+	 * to extend it to for example cache their certificates.
+	 * @param \Alexa\Request\Certificate $certificate
+	 */
+	public function setCertificateDependency(\Alexa\Request\Certificate $certificate) {
+		$this->certificate = $certificate;
+	}
 
+	/**
+	 * Accept the application validator dependency in order to allow people
+	 * to extend it.
+	 * @param \Alexa\Request\Application $application
+	 */
+	public function setApplicationDependency(\Alexa\Request\Application $application) {
+		$this->application = $application;
+	}
+
+	/**
+	 * Instance the correct type of Request, based on the $jons->request->type
+	 * value.
+	 * @param type $data
+	 * @return \Alexa\Request\Request   base class
+	 * @throws RuntimeException
+	 */
+	public function fromData() {
+		$data = $this->data;
+
+		// Instantiate a new Certificate validator if none is injected
+		// as our dependency.
+		if (!isset($this->certificate)) {
+			$this->certificate = new Certificate($_SERVER['HTTP_SIGNATURECERTCHAINURL'], $_SERVER['HTTP_SIGNATURE']);
+		}
+		if (!isset($this->application)) {
+			$this->application = new Application($this->applicationId);
+		}
+
+		// We need to ensure that the request Application ID matches our Application ID.
+		$this->application->validateApplicationId($data['session']['application']['applicationId']);
+		// Validate that the request signature matches the certificate.
+		$this->certificate->validateRequest($this->rawData);
+
+
+		$requestType = $data['request']['type'];
 		if (!class_exists('\\Alexa\\Request\\' . $requestType)) {
 			throw new RuntimeException('Unknown request type: ' . $requestType);
 		}
 
 		$className = '\\Alexa\\Request\\' . $requestType;
 
-		$request = new $className($data);
+		$request = new $className($this->rawData,$this->applicationId);
 		return $request;
 	}
 
-	public function validate() {
-		$this->validateTimestamp();
-	}
-
-	private function validateTimestamp() {
-		$now = new DateTime;
-		$differenceInSeconds = $now->getTimestamp() - $this->timestamp->getTimestamp();
-
-		if ($differenceInSeconds > self::TIMESTAMP_VALID_TOLERANCE_SECONDS) {
-			throw new InvalidArgumentException('Request timestamp was too old. Possible replay attack.');
-		}
-	}
 }
